@@ -1,0 +1,28 @@
+# .NET build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.user
+*.suo
+*.cache
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Runtime state
+*.txt.swp
+last-processed-lsn.txt
+
+# Dependencies
+packages/
+node_modules/
+
+# Logs
+*.log
