@@ -1,0 +1,63 @@
+# ===================================
+# Terraform Variables Template
+# ===================================
+# Copy this file to terraform.tfvars and fill in your actual values
+# IMPORTANT: terraform.tfvars is gitignored - never commit it!
+
+# ===================================
+# Snowflake Authentication
+# ===================================
+
+# Get these from your Snowflake trial account
+# Account identifier format: <account_locator>.<region>.<cloud>
+# Example: xy12345.us-east-1.aws or xy12345.us-east-1
+snowflake_account = "YOUR_ACCOUNT_IDENTIFIER"
+
+# Use a dedicated service account (not your personal account)
+# Create with: CREATE USER terraform_user PASSWORD='...' DEFAULT_ROLE=ACCOUNTADMIN;
+snowflake_user = "terraform_user"
+
+# Strong password for service account
+snowflake_password = "YOUR_SECURE_PASSWORD"
+
+# Must be ACCOUNTADMIN for storage integration provisioning
+snowflake_role = "ACCOUNTADMIN"
+
+# ===================================
+# Azure Configuration
+# ===================================
+
+# Get from Azure Portal: Azure Active Directory > Properties > Tenant ID
+azure_tenant_id = "YOUR_AZURE_TENANT_ID"
+
+# Name of your Azure Storage Account (must already exist)
+azure_storage_account_name = "YOUR_STORAGE_ACCOUNT_NAME"
+
+# Container name for ingestion files
+# This will be created automatically if it doesn't exist
+azure_storage_container_name = "ingestion-data"
+
+# Resource group containing the storage account
+azure_resource_group = "YOUR_RESOURCE_GROUP"
+
+# ===================================
+# Optional Configuration
+# ===================================
+
+# Environment name (dev, staging, prod)
+environment = "dev"
+
+# Project name (used for resource naming)
+project_name = "ingestion_platform"
+
+# Warehouse size (X-SMALL recommended for dev)
+warehouse_size = "X-SMALL"
+
+# Auto-suspend after 60 seconds of inactivity
+warehouse_auto_suspend_seconds = 60
+
+# Snowpipe error handling (CONTINUE or ABORT_STATEMENT)
+snowpipe_error_handling = "CONTINUE"
+
+# Enable bronze tables (set to false to skip table creation)
+enable_bronze_tables = true

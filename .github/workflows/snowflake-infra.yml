@@ -1,0 +1,141 @@
+name: Snowflake Infrastructure (Terraform)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/**'
+      - '.github/workflows/snowflake-infra.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'infra/**'
+      - '.github/workflows/snowflake-infra.yml'
+
+# Prevent concurrent Terraform runs
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TERRAFORM_VERSION: 1.9.0
+  WORKING_DIRECTORY: infra
+
+jobs:
+  terraform:
+    name: Terraform Plan & Apply
+    runs-on: ubuntu-latest
+
+    # Required permissions for Terraform Cloud integration
+    permissions:
+      contents: read
+      pull-requests: write # For PR comments
+
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        env:
+          TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
+          TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_storage_account_name: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
+          TF_VAR_azure_storage_container_name: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
+          TF_VAR_azure_resource_group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -input=false
+        env:
+          TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
+          TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_storage_account_name: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
+          TF_VAR_azure_storage_container_name: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
+          TF_VAR_azure_resource_group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        continue-on-error: true
+
+      - name: Comment PR with Plan
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false
+        env:
+          TF_VAR_snowflake_account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          TF_VAR_snowflake_user: ${{ secrets.SNOWFLAKE_USER }}
+          TF_VAR_snowflake_password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          TF_VAR_snowflake_role: ${{ secrets.SNOWFLAKE_ROLE }}
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_storage_account_name: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
+          TF_VAR_azure_storage_container_name: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
+          TF_VAR_azure_resource_group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+      - name: Post-Apply Summary
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "## Terraform Apply Complete ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Grant Azure consent (check terraform outputs for URL)" >> $GITHUB_STEP_SUMMARY
+          echo "2. Run \`infra/scripts/setup-azure-eventgrid.sh\` to configure Event Grid" >> $GITHUB_STEP_SUMMARY
+          echo "3. Test ingestion by uploading a Parquet file" >> $GITHUB_STEP_SUMMARY
